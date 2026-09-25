@@ -13,7 +13,17 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 from typing import Literal
 
+from ai_routes import router as ai_router
+
+from fastapi.staticfiles import StaticFiles
+
 app = FastAPI(title="留白 LessLab", version="0.1.0")
+app.include_router(ai_router)
+app.mount(
+    "/static",
+    StaticFiles(directory=Path(__file__).parent / "static"),
+    name="static",
+)
 
 
 @app.get("/", response_class=FileResponse)

@@ -49,7 +49,7 @@
             margin-bottom: 8px;
         }
 
-        input {
+        input, textarea {
             width: 100%;
             padding: 12px;
             margin-bottom: 18px;
@@ -124,6 +124,44 @@
             <p id="form-message" role="status"></p>
         </form>
 
+        <h2>AI 学习计划</h2>
+
+<form id="ai-plan-form">
+    <label for="ai-goal">你想学会什么？</label>
+    <textarea
+        id="ai-goal"
+        rows="3"
+        minlength="2"
+        maxlength="500"
+        placeholder="例如：我想掌握 Python 函数的参数和返回值"
+        required
+    ></textarea>
+
+    <label for="ai-minutes">今天可以学习多久？（分钟）</label>
+    <input
+        id="ai-minutes"
+        type="number"
+        min="1"
+        max="600"
+        step="1"
+        value="30"
+        required
+    >
+
+    <p class="subtitle">
+        根据收藏标题和预计时长生成建议。
+        你的学习目标及候选收藏的标题、时长会发送给 DeepSeek。
+    </p>
+
+    <button id="ai-plan-button" type="submit">
+        生成 AI 计划
+    </button>
+
+    <p id="ai-plan-message" role="status"></p>
+    <p id="ai-plan-usage" class="subtitle"></p>
+</form>
+
+<div id="ai-plan-list"></div>
         <h2>今日学习计划</h2>
 
 <form id="plan-form">
@@ -470,5 +508,7 @@ planForm.addEventListener("submit", async function (event) {
         // 打开网页时，自动加载收藏。
         loadResources();
     </script>
+
+    <script src="/static/ai_plan.js" defer></script>
 </body>
 </html>
