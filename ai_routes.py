@@ -67,6 +67,7 @@ def create_ai_study_plan(request: AIPlanRequest):
                     SELECT id, title, url, estimated_minutes
                     FROM resources
                     WHERE status = 'unread'
+                      AND archived_at IS NULL
                       AND estimated_minutes BETWEEN 1 AND :minutes
                     ORDER BY id DESC
                     LIMIT 20

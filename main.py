@@ -17,8 +17,13 @@ from ai_routes import router as ai_router
 
 from fastapi.staticfiles import StaticFiles
 
+from plan_routes import router as plan_router
+from archive_routes import router as archive_router
+
 app = FastAPI(title="留白 LessLab", version="0.1.0")
 app.include_router(ai_router)
+app.include_router(plan_router)
+app.include_router(archive_router)
 app.mount(
     "/static",
     StaticFiles(directory=Path(__file__).parent / "static"),
@@ -54,16 +59,19 @@ def database_health():
 
 
 @app.get("/resources")
-def list_resources():
+def list_resources(archived: bool = Query(default=False)):
     try:
         with engine.connect() as connection:
             result = connection.execute(
                 text("""
-                    SELECT id, title, url, status, created_at, estimated_minutes
+                    SELECT id, title, url, status, created_at, estimated_minutes, archived_at
                     FROM resources
+                    WHERE (:archived = 1 AND archived_at IS NOT NULL)
+                       OR (:archived = 0 AND archived_at IS NULL)
                     ORDER BY id DESC
                     LIMIT 100
-                """)
+                """),
+                {"archived": int(archived)},
             )
 
             resources = [
@@ -177,6 +185,7 @@ def create_study_plan(
                     SELECT id, title, url, estimated_minutes
                     FROM resources
                     WHERE status = 'unread'
+                      AND archived_at IS NULL
                       AND estimated_minutes BETWEEN 1 AND :minutes
                     ORDER BY estimated_minutes ASC, id ASC
                     LIMIT 600
