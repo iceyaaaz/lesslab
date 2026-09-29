@@ -125,6 +125,25 @@ form, .card { padding: 22px; background: #fff; border: 1px solid var(--border); 
 .resource-actions { grid-column: 2; grid-row: 2 / 4; display: flex; align-self: end; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 #collection-operation, #archive-operation { font-size: 12px; color: #315f4e; overflow-wrap: anywhere; }
 @media (max-width: 760px) { .sidebar nav { flex-wrap: wrap; } .nav-link { flex: 1 0 40%; } .resource-actions { max-width: 112px; } }
+
+.goal-card { flex-wrap: wrap; }
+.goal-summary { flex: 1; min-width: 160px; overflow-wrap: anywhere; }
+.goal-card-actions { display: flex; flex-wrap: wrap; gap: 9px; width: 100%; padding-left: 61px; }
+.goal-card-actions button { font-size: 12px; padding: 8px 12px; }
+.goal-fields-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+#goal-message { font-size: 12px; color: #667b68; margin-bottom: 24px; }
+#current-goal-criteria { margin-top: 8px; }
+#current-goal-form .subtitle, #current-goal-plan-note { font-size: 12px; margin: 12px 0; }
+#goal-reload-button { margin: 8px 0; }
+@media (max-width: 760px) { .goal-fields-row { grid-template-columns: 1fr; gap: 0; } .goal-card-actions { padding-left: 0; } }
+
+.plan-progress-bar { display: block; width: 100%; height: 12px; accent-color: #315f4e; margin: 14px 0; }
+.plan-task { border-top: 1px solid #e4e8e1; padding-top: 20px; margin-top: 20px; }
+.plan-task h4 { margin-bottom: 8px; overflow-wrap: anywhere; }
+.task-checkbox { display: flex; align-items: center; gap: 9px; margin: 15px 0 0; cursor: pointer; width: fit-content; }
+.task-checkbox input { width: 18px; height: 18px; margin: 0; accent-color: #315f4e; }
+.task-completed h4 { color: #667d69; }
+.task-completed .task-checkbox { color: #315f4e; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -153,7 +172,25 @@ form, .card { padding: 22px; background: #fff; border: 1px solid var(--border); 
         </header>
 
         <section id="view-inbox" class="view-panel" aria-label="资料收件箱">
-            <div class="intent-card"><span class="intent-icon" aria-hidden="true">◎</span><div><small>今天，从一个小目标开始</small><h2>收藏之后，再向前一步。</h2><p>选好资料，给自己留一点行动的时间。</p></div><a href="#plans" class="text-link">安排计划 →</a></div>
+            <div class="intent-card goal-card">
+    <span class="intent-icon" aria-hidden="true">◎</span>
+    <div class="goal-summary"><small>当前目标</small><h2 id="current-goal-title">正在读取目标……</h2><p id="current-goal-meta"></p><p id="current-goal-criteria"></p></div>
+    <div class="goal-card-actions"><button id="goal-edit-button" class="outline-button" type="button">设置 / 修改目标</button><button id="goal-plan-button" type="button" disabled>用此目标安排计划 →</button></div>
+</div>
+<details id="goal-editor" class="resource-editor">
+    <summary>设置或修改当前目标</summary>
+    <form id="current-goal-form">
+        <label for="goal-title-input">你想完成什么？</label>
+        <input id="goal-title-input" minlength="2" maxlength="200" placeholder="例如：独立完成一个可用的 Python 小项目" required disabled>
+        <label for="goal-criteria-input">做到什么算完成？（可选）</label>
+        <textarea id="goal-criteria-input" rows="2" maxlength="250" placeholder="例如：能新增、查询数据，并向别人演示完整流程" disabled></textarea>
+        <div class="goal-fields-row"><div><label for="goal-date-input">目标日期（可选）</label><input id="goal-date-input" type="date" disabled></div><div><label for="goal-minutes-input">默认每次安排几分钟？</label><input id="goal-minutes-input" type="number" min="1" max="600" step="1" value="30" required disabled></div></div>
+        <button id="goal-save-button" type="submit" disabled>保存目标</button>
+        <button id="goal-reload-button" type="button" class="outline-button">重新读取已保存目标</button>
+        <p class="subtitle">重新读取会替换表单内未保存的修改。当前先支持一个目标，保存与修改不会调用 AI。</p>
+    </form>
+</details>
+<p id="goal-message" role="status"></p>
             <details id="resource-editor" class="resource-editor"><summary>添加一份值得学习的资料 <span aria-hidden="true">＋</span></summary><form id="resource-form">
             <label for="title">收藏标题</label>
             <input
@@ -204,6 +241,8 @@ form, .card { padding: 22px; background: #fff; border: 1px solid var(--border); 
             <div class="section-heading"><h2 id="plans-heading">围绕目标，安排今天</h2><span class="quiet-label">从能完成的一小步开始</span></div>
             <div class="plan-intro"><span class="badge">AI 计划</span><p>写下具体目标，AI 将从你的待学习收藏中挑选内容。</p></div>
             <form id="ai-plan-form">
+    <button id="apply-current-goal" class="outline-button" type="button" disabled>带入当前目标</button>
+    <p id="current-goal-plan-note" class="subtitle">可以使用保存的目标，也可以在下方临时填写。</p>
     <label for="ai-goal">你想学会什么？</label>
     <textarea
         id="ai-goal"
@@ -376,7 +415,8 @@ planForm.addEventListener("submit", async function (event) {
     </script>
 
     <script src="/static/collections.js?v=archive-1" defer></script>
-    <script src="/static/ai_plan.js?v=history-1" defer></script>
+    <script src="/static/ai_plan.js?v=progress-1" defer></script>
+    <script src="/static/current_goal.js?v=goal-1" defer></script>
 
 <script>(() => {
     const views = {

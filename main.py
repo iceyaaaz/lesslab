@@ -19,11 +19,15 @@ from fastapi.staticfiles import StaticFiles
 
 from plan_routes import router as plan_router
 from archive_routes import router as archive_router
+from goal_routes import router as goal_router
+from progress_routes import router as progress_router
 
 app = FastAPI(title="留白 LessLab", version="0.1.0")
 app.include_router(ai_router)
 app.include_router(plan_router)
 app.include_router(archive_router)
+app.include_router(goal_router)
+app.include_router(progress_router)
 app.mount(
     "/static",
     StaticFiles(directory=Path(__file__).parent / "static"),

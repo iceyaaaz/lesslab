@@ -7,8 +7,6 @@
 
 ## 当前开发状态
 
-> 同步说明：本次仅更新文档。下文的“当前目标”“计划执行进度”和 76 项测试记录来自本地开发版本；对应功能代码、003/004 迁移和新增测试尚未同步到 GitHub。仅从当前仓库下载代码时，这两项功能暂不可用。
-
 已完成本地单用户版本：收藏管理、归档恢复、当前目标、规则计划、AI 计划、
 计划历史和任务完成进度。下一阶段先补齐多人使用所需的访问控制与调用限制，
 再进行部署验收；暂不增加新的业务功能。
@@ -93,11 +91,8 @@ python -m venv .venv
 1. `init.sql`
 2. `migrations/001_create_study_plans.sql`
 3. `migrations/002_add_resource_archive.sql`
-4. `migrations/003_create_current_goal.sql`（仅适用于已取得当前目标功能代码的本地版本）
-5. `migrations/004_create_plan_progress.sql`（仅适用于已取得任务进度功能代码的本地版本）
-
-当前 GitHub 版本只包含前两份迁移；首次下载本仓库时执行 `init.sql`、001 和 002。
-待功能代码与迁移一起同步后，再按升级说明执行 003 和 004，不要自行创建空脚本。
+4. `migrations/003_create_current_goal.sql`
+5. `migrations/004_create_plan_progress.sql`
 
 已有数据库只执行尚未应用的迁移。002 添加 `resources.archived_at` 字段，
 只执行一次；可先运行 `SHOW COLUMNS FROM lesslab.resources LIKE 'archived_at';` 检查。
@@ -177,8 +172,7 @@ DEEPSEEK_MODEL=deepseek-flash
 测试使用模拟配置、模型响应以及内存 SQLite 数据库检查接口行为，不读取真实 `.env`，
 不访问 MySQL，不调用 DeepSeek，也不消耗模型额度。
 
-本地开发版本共 76 项离线测试；GitHub 当前版本尚不包含新增的目标和进度测试，
-CI 测试数量以对应提交的实际结果为准。本地测试覆盖：
+当前共 76 项离线测试，覆盖：
 
 - AI 计划结构、编号、重复项、预算边界、超时与异常响应。
 - 历史计划保存时的数据校验和快照保留。
@@ -192,9 +186,6 @@ SQLite 测试适配器不模拟 MySQL 行锁，数据库并发行为仍需独立
 当前测试通过不表示已经覆盖这些能力。
 
 ## 项目文件
-
-下表包含本地开发版本的文件；`goal_routes.py`、`progress_routes.py`、
-`static/current_goal.js` 以及目标、进度测试仍待同步到 GitHub。
 
 | 文件 | 用途 |
 |---|---|

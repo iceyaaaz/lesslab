@@ -75,28 +75,121 @@
         card.className = "card";
         const heading = document.createElement("h3");
         heading.textContent = `计划 #${plan.id}：${plan.goal}`;
+        const count = paragraph("正在读取完成进度……");
+        count.setAttribute("role", "status");
+        const progress = document.createElement("progress");
+        progress.max = Math.max(1, plan.items.length);
+        progress.value = 0;
+        progress.hidden = true;
+        progress.setAttribute("aria-label", "本计划完成进度");
+        progress.className = "plan-progress-bar";
+        const refresh = document.createElement("button");
+        refresh.type = "button";
+        refresh.className = "outline-button";
+        refresh.textContent = "刷新进度";
+        const status = paragraph("");
+        status.setAttribute("role", "status");
         card.append(heading, paragraph(
             `${sourceName(plan.source)} · 预算 ${plan.budget_minutes} 分钟 · 预计 ${plan.total_minutes} 分钟`
-        ), paragraph("以下是保存时的内容快照，不代表当前完成状态。"));
+        ), paragraph("勾选记录本计划的完成情况。收藏状态仍在资料收件箱中单独维护。"), count, progress, refresh, status);
+
+        let busy = false;
+        let loaded = false;
+        const controls = new Map();
+        function setBusy(value) {
+            busy = value;
+            refresh.disabled = value;
+            for (const control of controls.values()) control.input.disabled = value || !loaded;
+        }
+        function applyProgress(data) {
+            const valid = data?.plan_id === plan.id && Array.isArray(data.items)
+                && data.items.length === controls.size
+                && new Set(data.items.map(item => item.resource_id)).size === controls.size
+                && data.items.every(item => controls.has(item.resource_id) && typeof item.completed === "boolean");
+            if (!valid) throw new Error("完成进度格式异常，请刷新进度重试。");
+            let completed = 0;
+            for (const item of data.items) {
+                const control = controls.get(item.resource_id);
+                control.input.checked = item.completed;
+                control.label.textContent = item.completed ? "已完成" : "标记完成";
+                control.section.classList.toggle("task-completed", item.completed);
+                if (item.completed) completed++;
+            }
+            loaded = true;
+            progress.hidden = false;
+            progress.value = completed;
+            count.textContent = `已完成 ${completed} / ${controls.size} 项` + (controls.size > 0 && completed === controls.size ? "，这份计划已全部完成！" : "");
+        }
+        async function loadProgress() {
+            if (busy) return;
+            setBusy(true);
+            status.textContent = "正在读取进度……";
+            try {
+                const data = await requestPlan(`/study-plans/${plan.id}/progress`);
+                if (!card.isConnected) return;
+                applyProgress(data);
+                status.textContent = "已读取保存的进度。";
+            } catch (error) {
+                if (!card.isConnected) return;
+                loaded = false;
+                count.textContent = "进度暂不可用";
+                progress.hidden = true;
+                status.textContent = `${errorText(error)} 请点击“刷新进度”重试。`;
+            } finally { setBusy(false); }
+        }
+
         for (const [index, item] of plan.items.entries()) {
+            const section = document.createElement("section");
+            section.className = "plan-task";
             const title = document.createElement("h4");
             title.textContent = `${index + 1}. ${item.title}`;
-            card.append(title, paragraph(`预计学习 ${item.estimated_minutes} 分钟`));
-            if (item.reason) card.append(paragraph(`推荐理由：${item.reason}`));
+            const label = document.createElement("label");
+            label.className = "task-checkbox";
+            const input = document.createElement("input");
+            input.type = "checkbox";
+            input.disabled = true;
+            input.setAttribute("aria-label", `完成任务：${item.title}`);
+            const labelText = document.createElement("span");
+            labelText.textContent = "标记完成";
+            label.append(input, labelText);
+            controls.set(item.id, {input, label: labelText, section});
+            section.append(title, paragraph(`预计学习 ${item.estimated_minutes} 分钟`));
+            if (item.reason) section.append(paragraph(`推荐理由：${item.reason}`));
             try {
                 const url = new URL(item.url);
                 if (["http:", "https:"].includes(url.protocol)) {
                     const link = document.createElement("a");
-                    link.href = url.href;
-                    link.target = "_blank";
-                    link.rel = "noopener noreferrer";
-                    link.className = "original-link";
-                    link.textContent = "打开学习内容 ↗";
-                    card.append(link);
+                    Object.assign(link, {href: url.href, target: "_blank", rel: "noopener noreferrer", className: "original-link", textContent: "打开学习内容 ↗"});
+                    section.append(link);
                 }
-            } catch { /* 无效链接不影响显示已保存的文字。 */ }
+            } catch { /* 快照中的无效链接仍可展示文字。 */ }
+            section.append(label);
+            card.append(section);
+            input.addEventListener("change", async () => {
+                const requested = input.checked;
+                input.checked = !requested; // 以服务器保存结果为准。
+                if (busy || !loaded) return;
+                setBusy(true);
+                status.textContent = "正在保存完成状态……";
+                try {
+                    const data = await requestPlan(`/study-plans/${plan.id}/tasks/${item.id}/completion`, {
+                        method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({completed: requested}),
+                    });
+                    if (!card.isConnected) return;
+                    applyProgress(data);
+                    status.textContent = requested ? "已保存完成状态，刷新后仍会保留。" : "已改回未完成。";
+                } catch (error) {
+                    if (!card.isConnected) return;
+                    loaded = false;
+                    count.textContent = "请刷新进度确认最新状态";
+                    progress.hidden = true;
+                    status.textContent = `${errorText(error)} 暂时无法确认保存结果，请点击“刷新进度”，再决定是否重试。`;
+                } finally { setBusy(false); }
+            });
         }
+        refresh.addEventListener("click", loadProgress);
         detailList.replaceChildren(card);
+        void loadProgress();
     }
 
     async function showDetail(planId, detailButton) {

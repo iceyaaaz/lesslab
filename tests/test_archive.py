@@ -59,7 +59,7 @@ class ArchiveTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         with patch.dict(sys.modules, {'database': database}):
             self.modules = {}
-            for name in ('ai_routes', 'plan_routes', 'archive_routes'):
+            for name in ('ai_routes', 'plan_routes', 'archive_routes', 'goal_routes', 'progress_routes'):
                 spec = importlib.util.spec_from_file_location(name, root / (name + '.py'))
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
