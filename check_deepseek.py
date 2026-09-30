@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 import httpx
 from dotenv import dotenv_values
@@ -7,6 +8,9 @@ from dotenv import dotenv_values
 def main():
     # 读取配置，但不打印密钥。
     config = dotenv_values(Path(__file__).with_name(".env"))
+    for name in ("DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "DEEPSEEK_MODEL"):
+        if name in os.environ:
+            config[name] = os.environ[name]
 
     api_key = (config.get("DEEPSEEK_API_KEY") or "").strip()
     base_url = (

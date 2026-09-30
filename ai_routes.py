@@ -1,6 +1,7 @@
 """AI 学习计划接口：读取候选收藏、调用模型、校验计划。"""
 
 import json
+import os
 from pathlib import Path
 
 import httpx
@@ -96,6 +97,10 @@ def create_ai_study_plan(request: AIPlanRequest, user: dict = Depends(require_us
 
     # 2. 密钥只在后端读取。不要打印 config 或 api_key。
     config = dotenv_values(Path(__file__).with_name(".env"))
+    # Render 环境变量优先；显式设置空密钥可以停用 AI，不回退到文件中的旧密钥。
+    for name in ("DEEPSEEK_API_KEY", "DEEPSEEK_BASE_URL", "DEEPSEEK_MODEL"):
+        if name in os.environ:
+            config[name] = os.environ[name]
     api_key = (config.get("DEEPSEEK_API_KEY") or "").strip()
     base_url = (config.get("DEEPSEEK_BASE_URL") or "https://api.deepseek.com").rstrip("/")
     model = config.get("DEEPSEEK_MODEL") or "deepseek-flash"

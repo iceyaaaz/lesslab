@@ -6,6 +6,7 @@ python -m unittest discover -s tests -v
 
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 import types
@@ -21,6 +22,9 @@ from sqlalchemy.exc import SQLAlchemyError
 
 class AIPlanTests(unittest.TestCase):
     def setUp(self):
+        env_patch = patch.dict(os.environ, {}, clear=True)
+        env_patch.start()
+        self.addCleanup(env_patch.stop)
         # 导入接口时替换 database 模块，避免触碰真实数据库配置。
         fake_database = types.ModuleType("database")
         fake_database.engine = MagicMock()
@@ -157,6 +161,20 @@ class AIPlanTests(unittest.TestCase):
     def test_missing_key_skips_model_call(self):
         self.config_mock.return_value = {}
         self.assertEqual(self.call_plan().status_code, 503)
+        self.http_mock.assert_not_called()
+
+    def test_cloud_environment_works_without_local_env_file(self):
+        self.config_mock.return_value = {}
+        self.set_model_response([{"id": 1, "reason": "练习函数。"}])
+        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": "cloud-test-key", "DEEPSEEK_BASE_URL": "https://example.com/api", "DEEPSEEK_MODEL": "test-model"}):
+            self.assertEqual(self.call_plan().status_code, 200)
+        self.assertEqual(self.http_mock.call_args.args[0], "https://example.com/api/chat/completions")
+        self.assertEqual(self.http_mock.call_args.kwargs['headers']['Authorization'], 'Bearer cloud-test-key')
+        self.assertEqual(self.http_mock.call_args.kwargs['json']['model'], 'test-model')
+
+    def test_blank_cloud_key_disables_file_key(self):
+        with patch.dict(os.environ, {"DEEPSEEK_API_KEY": ""}):
+            self.assertEqual(self.call_plan().status_code, 503)
         self.http_mock.assert_not_called()
 
     def test_timeout_is_reported_without_retry(self):
