@@ -8,6 +8,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import bindparam, text
 from sqlalchemy.exc import SQLAlchemyError
 
+from fastapi import Depends
+from security import require_user
+
 from database import engine
 
 router = APIRouter(tags=["历史学习计划"])
@@ -76,7 +79,7 @@ def decode_plan(row):
 
 
 @router.post("/study-plans", status_code=201)
-def save_study_plan(request: SavePlanRequest):
+def save_study_plan(request: SavePlanRequest, user: dict = Depends(require_user)):
     ids = [item.id for item in request.items]
     # 在查询前先检查重复项和项数，避免不必要的数据库操作。
     if len(set(ids)) != len(ids):
@@ -87,7 +90,7 @@ def save_study_plan(request: SavePlanRequest):
     statement = text("""
         SELECT id, title, url, status, estimated_minutes, archived_at
         FROM resources
-        WHERE id IN :resource_ids
+        WHERE owner_id = :user_id AND id IN :resource_ids
         ORDER BY id
         FOR UPDATE
     """).bindparams(bindparam("resource_ids", expanding=True))
@@ -96,19 +99,20 @@ def save_study_plan(request: SavePlanRequest):
         # 查询与写入处于同一事务；短暂锁定涉及的收藏以保持快照一致。
         with engine.begin() as connection:
             rows = connection.execute(
-                statement, {"resource_ids": ids}
+                statement, {"resource_ids": ids, "user_id": user["id"]}
             ).mappings().all()
             snapshot, total = prepare_snapshot(request, rows)
 
             result = connection.execute(
                 text("""
                     INSERT INTO study_plans
-                        (goal, budget_minutes, total_minutes, source, items)
+                        (goal, budget_minutes, total_minutes, source, items, owner_id)
                     VALUES
-                        (:goal, :budget_minutes, :total_minutes, :source, :items)
+                        (:goal, :budget_minutes, :total_minutes, :source, :items, :user_id)
                 """),
                 {
                     "goal": request.goal,
+                    "user_id": user["id"],
                     "budget_minutes": request.budget_minutes,
                     "total_minutes": total,
                     "source": request.source,
@@ -119,9 +123,9 @@ def save_study_plan(request: SavePlanRequest):
                 text("""
                     SELECT id, goal, budget_minutes, total_minutes,
                            source, items, created_at
-                    FROM study_plans WHERE id = :plan_id
+                    FROM study_plans WHERE id = :plan_id AND owner_id = :user_id
                 """),
-                {"plan_id": result.lastrowid},
+                {"plan_id": result.lastrowid, "user_id": user["id"]},
             ).mappings().one()
             plan = decode_plan(row)
 
@@ -135,6 +139,7 @@ def save_study_plan(request: SavePlanRequest):
 def list_study_plans(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    user: dict = Depends(require_user),
 ):
     try:
         with engine.connect() as connection:
@@ -143,10 +148,11 @@ def list_study_plans(
                     SELECT id, goal, budget_minutes, total_minutes,
                            source, created_at, JSON_LENGTH(items) AS item_count
                     FROM study_plans
+                    WHERE owner_id = :user_id
                     ORDER BY id DESC
                     LIMIT :limit OFFSET :offset
                 """),
-                {"limit": limit + 1, "offset": offset},
+                {"limit": limit + 1, "offset": offset, "user_id": user["id"]},
             ).mappings().all()
             summaries = [dict(row) for row in rows]
 
@@ -161,16 +167,16 @@ def list_study_plans(
 
 
 @router.get("/study-plans/{plan_id}")
-def get_study_plan(plan_id: int = Path(gt=0)):
+def get_study_plan(plan_id: int = Path(gt=0), user: dict = Depends(require_user)):
     try:
         with engine.connect() as connection:
             row = connection.execute(
                 text("""
                     SELECT id, goal, budget_minutes, total_minutes,
                            source, items, created_at
-                    FROM study_plans WHERE id = :plan_id
+                    FROM study_plans WHERE id = :plan_id AND owner_id = :user_id
                 """),
-                {"plan_id": plan_id},
+                {"plan_id": plan_id, "user_id": user["id"]},
             ).mappings().first()
 
         if row is None:

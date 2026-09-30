@@ -144,7 +144,10 @@ form, .card { padding: 22px; background: #fff; border: 1px solid var(--border); 
 .task-checkbox input { width: 18px; height: 18px; margin: 0; accent-color: #315f4e; }
 .task-completed h4 { color: #667d69; }
 .task-completed .task-checkbox { color: #315f4e; font-weight: 600; }
+.account-controls { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-bottom: 18px; font-size: 13px; color: var(--muted); }
+.account-controls button { padding: 6px 12px; }
 </style>
+<script src="/static/auth.js?v=auth-1" defer></script>
 </head>
 <body>
 <a class="skip-link" href="#page-title">跳到主要内容</a>
@@ -166,6 +169,7 @@ form, .card { padding: 22px; background: #fff; border: 1px solid var(--border); 
     </aside>
 
     <main class="workspace">
+        <div class="account-controls"><span id="account-name">正在验证登录……</span><button type="button" class="outline-button" id="logout-button">退出登录</button></div>
         <header class="workspace-header">
             <div><p class="eyebrow">LESS, BUT BETTER</p><h1 id="page-title" tabindex="-1">为重要的事，留一点白</h1><p id="page-subtitle" class="subtitle">整理你的学习资料，从一份能完成的计划开始。</p></div>
             <button id="open-resource-form" type="button" class="outline-button">＋ 新增收藏</button>

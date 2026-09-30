@@ -1,4 +1,5 @@
 from pathlib import Path
+from security import AuthConfig
 
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -11,6 +12,9 @@ class Settings(BaseSettings):
     db_user: str
     db_password: SecretStr
     db_name: str
+    app_origin: str = "http://127.0.0.1:8000"
+    auth_cookie_secure: bool = False
+    auth_allow_registration: bool = False
 
     model_config = SettingsConfigDict(
         env_file=Path(__file__).with_name(".env"),
@@ -20,6 +24,7 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+auth_config = AuthConfig(origin=settings.app_origin, cookie_secure=settings.auth_cookie_secure, allow_registration=settings.auth_allow_registration)
 
 database_url = URL.create(
     drivername="mysql+pymysql",

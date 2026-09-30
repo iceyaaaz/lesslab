@@ -1,8 +1,17 @@
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import HTMLResponse
+from fastapi import Request
+from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from urllib.parse import urlsplit
+from database import auth_config
+from auth_routes import router as auth_router
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
+
+from fastapi import Depends
+from security import require_user
 
 from database import engine
 
@@ -22,7 +31,31 @@ from archive_routes import router as archive_router
 from goal_routes import router as goal_router
 from progress_routes import router as progress_router
 
-app = FastAPI(title="留白 LessLab", version="0.1.0")
+app = FastAPI(title="留白 LessLab", version="0.2.0")
+app.state.engine = engine
+app.state.auth_config = auth_config
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=[urlsplit(auth_config.origin).hostname])
+app.include_router(auth_router)
+
+
+@app.middleware("http")
+async def private_response_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "same-origin"
+    return response
+
+
+@app.exception_handler(RequestValidationError)
+async def safe_validation_errors(request: Request, error: RequestValidationError):
+    # FastAPI 默认验证响应会包含 input；避免把密码等请求内容回显。
+    return JSONResponse(status_code=422, content={"detail": [
+        {"loc": list(item["loc"]), "msg": item["msg"], "type": item["type"]}
+        for item in error.errors()
+    ]})
+
 app.include_router(ai_router)
 app.include_router(plan_router)
 app.include_router(archive_router)
@@ -36,9 +69,20 @@ app.mount(
 
 
 @app.get("/", response_class=FileResponse)
-def home():
+def home(request: Request):
+    try:
+        require_user(request)
+    except HTTPException as error:
+        if error.status_code == 401:
+            return RedirectResponse("/login", status_code=303)
+        raise
     html_path = Path(__file__).with_name("index.html")
     return FileResponse(html_path)
+
+
+@app.get("/login", response_class=FileResponse)
+def login_page():
+    return FileResponse(Path(__file__).with_name("login.html"))
 
 
 @app.get("/health")
@@ -48,7 +92,7 @@ def health():
 
 
 @app.get("/health/db")
-def database_health():
+def database_health(user: dict = Depends(require_user)):
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1")).scalar_one()
@@ -63,19 +107,20 @@ def database_health():
 
 
 @app.get("/resources")
-def list_resources(archived: bool = Query(default=False)):
+def list_resources(archived: bool = Query(default=False), user: dict = Depends(require_user)):
     try:
         with engine.connect() as connection:
             result = connection.execute(
                 text("""
                     SELECT id, title, url, status, created_at, estimated_minutes, archived_at
                     FROM resources
-                    WHERE (:archived = 1 AND archived_at IS NOT NULL)
-                       OR (:archived = 0 AND archived_at IS NULL)
+                    WHERE owner_id = :user_id
+                      AND ((:archived = 1 AND archived_at IS NOT NULL)
+                       OR (:archived = 0 AND archived_at IS NULL))
                     ORDER BY id DESC
                     LIMIT 100
                 """),
-                {"archived": int(archived)},
+                {"archived": int(archived), "user_id": user["id"]},
             )
 
             resources = [
@@ -91,7 +136,7 @@ def list_resources(archived: bool = Query(default=False)):
         ) from None
 
 class ResourceCreate(BaseModel):
-    model_config = ConfigDict(str_strip_whitespace=True)
+    model_config = ConfigDict(str_strip_whitespace=True, extra="forbid")
 
     title: str = Field(min_length=1, max_length=200)
     url: HttpUrl
@@ -103,22 +148,23 @@ class ResourceCreate(BaseModel):
 
 
 @app.post("/resources", status_code=201)
-def create_resource(resource: ResourceCreate):
+def create_resource(resource: ResourceCreate, user: dict = Depends(require_user)):
     try:
         with engine.begin() as connection:
             result = connection.execute(
                 text("""
                     INSERT INTO resources (
-                        title, url, estimated_minutes
+                        title, url, estimated_minutes, owner_id
                     )
                     VALUES (
-                        :title, :url, :estimated_minutes
+                        :title, :url, :estimated_minutes, :user_id
                     )
                 """),
                 {
                     "title": resource.title,
                     "url": str(resource.url),
                     "estimated_minutes": resource.estimated_minutes,
+                    "user_id": user["id"],
                 },
             )
 
@@ -146,6 +192,7 @@ class ResourceStatusUpdate(BaseModel):
 def update_resource_status(
     resource_id: int,
     resource: ResourceStatusUpdate,
+    user: dict = Depends(require_user),
 ):
     try:
         with engine.begin() as connection:
@@ -153,11 +200,12 @@ def update_resource_status(
                 text("""
                     UPDATE resources
                     SET status = :status
-                    WHERE id = :resource_id
+                    WHERE id = :resource_id AND owner_id = :user_id
                 """),
                 {
                     "status": resource.status,
                     "resource_id": resource_id,
+                    "user_id": user["id"],
                 },
             )
 
@@ -181,6 +229,7 @@ def update_resource_status(
 @app.get("/study-plan")
 def create_study_plan(
     minutes: int = Query(default=30, ge=1, le=600),
+    user: dict = Depends(require_user),
 ):
     try:
         with engine.connect() as connection:
@@ -188,13 +237,13 @@ def create_study_plan(
                 text("""
                     SELECT id, title, url, estimated_minutes
                     FROM resources
-                    WHERE status = 'unread'
+                    WHERE owner_id = :user_id AND status = 'unread'
                       AND archived_at IS NULL
                       AND estimated_minutes BETWEEN 1 AND :minutes
                     ORDER BY estimated_minutes ASC, id ASC
                     LIMIT 600
                 """),
-                {"minutes": minutes},
+                {"minutes": minutes, "user_id": user["id"]},
             )
 
             candidates = [

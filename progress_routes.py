@@ -6,6 +6,9 @@ from pydantic import BaseModel, ConfigDict, StrictBool
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from fastapi import Depends
+from security import require_user
+
 from database import engine
 
 router = APIRouter(tags=["计划执行进度"])
@@ -16,11 +19,11 @@ class TaskCompletion(BaseModel):
     completed: StrictBool
 
 
-def read_items(connection, plan_id, lock=False):
-    statement = "SELECT items FROM study_plans WHERE id = :id"
+def read_items(connection, plan_id, user_id, lock=False):
+    statement = "SELECT items FROM study_plans WHERE id = :id AND owner_id = :user_id"
     if lock:
         statement += " FOR UPDATE"
-    row = connection.execute(text(statement), {"id": plan_id}).mappings().first()
+    row = connection.execute(text(statement), {"id": plan_id, "user_id": user_id}).mappings().first()
     if row is None:
         raise HTTPException(404, "这份计划不存在。")
     items = row["items"]
@@ -52,10 +55,10 @@ def progress_summary(connection, plan_id, items):
 
 
 @router.get("/study-plans/{plan_id}/progress")
-def get_progress(plan_id: int = Path(gt=0)):
+def get_progress(plan_id: int = Path(gt=0), user: dict = Depends(require_user)):
     try:
         with engine.connect() as connection:
-            items = read_items(connection, plan_id)
+            items = read_items(connection, plan_id, user["id"])
             return progress_summary(connection, plan_id, items)
     except SQLAlchemyError:
         raise HTTPException(503, "读取计划进度失败，请检查数据库和 study_plan_progress 表。") from None
@@ -66,11 +69,12 @@ def set_completion(
     request: TaskCompletion,
     plan_id: int = Path(gt=0),
     resource_id: int = Path(gt=0),
+    user: dict = Depends(require_user),
 ):
     try:
         with engine.begin() as connection:
             # 同一计划的更新串行进行，避免首次写入时发生重复插入。
-            items = read_items(connection, plan_id, lock=True)
+            items = read_items(connection, plan_id, user["id"], lock=True)
             if resource_id not in {item["id"] for item in items}:
                 raise HTTPException(404, "这条任务不属于该计划。")
             params = {"plan_id": plan_id, "resource_id": resource_id, "completed": int(request.completed)}

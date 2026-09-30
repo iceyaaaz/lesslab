@@ -9,6 +9,8 @@ from pathlib import Path
 import sys
 import types
 import unittest
+from auth_test_support import authorize
+from security import AuthConfig
 from unittest.mock import patch, MagicMock
 
 import httpx
@@ -47,8 +49,8 @@ class ArchiveTests(unittest.TestCase):
         event.listen(self.real_engine, 'connect', lambda conn, _: conn.create_function('JSON_LENGTH', 1, lambda value: len(json.loads(value))))
         self.addCleanup(self.real_engine.dispose)
         with self.real_engine.begin() as conn:
-            conn.execute(text('CREATE TABLE resources (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, url TEXT, status TEXT DEFAULT \'unread\', estimated_minutes INTEGER, archived_at TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)'))
-            conn.execute(text('CREATE TABLE study_plans (id INTEGER PRIMARY KEY AUTOINCREMENT, goal TEXT, budget_minutes INTEGER, total_minutes INTEGER, source TEXT, items TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)'))
+            conn.execute(text('CREATE TABLE resources (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, url TEXT, owner_id INTEGER DEFAULT 1, status TEXT DEFAULT \'unread\', estimated_minutes INTEGER, archived_at TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)'))
+            conn.execute(text('CREATE TABLE study_plans (id INTEGER PRIMARY KEY AUTOINCREMENT, goal TEXT, owner_id INTEGER DEFAULT 1, budget_minutes INTEGER, total_minutes INTEGER, source TEXT, items TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)'))
             conn.execute(text('INSERT INTO resources (id,title,url,status,estimated_minutes,archived_at) VALUES (:id,:title,:url,:status,:minutes,:archived)'), [
                 dict(id=1, title='Python 函数', url='https://example.com/1', status='unread', minutes=20, archived=None),
                 dict(id=2, title='Python 基础', url='https://example.com/2', status='done', minutes=10, archived=None),
@@ -56,6 +58,7 @@ class ArchiveTests(unittest.TestCase):
             ])
         database = types.ModuleType('database')
         database.engine = SQLiteAdapter(self.real_engine)
+        database.auth_config = AuthConfig(origin="http://testserver")
         root = Path(__file__).resolve().parents[1]
         with patch.dict(sys.modules, {'database': database}):
             self.modules = {}
@@ -68,6 +71,7 @@ class ArchiveTests(unittest.TestCase):
                 spec = importlib.util.spec_from_file_location('_main_archive_test', root / 'main.py')
                 self.main = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(self.main)
+        authorize(self.main.app)
         self.client = TestClient(self.main.app)
         self.addCleanup(self.client.close)
         for target, attribute in ((self.modules['ai_routes'], 'dotenv_values'), (httpx, 'post')):

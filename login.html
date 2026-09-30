@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>登录 · 留白 LessLab</title>
+    <style>
+        :root { color-scheme: light; --green: #315f4e; --ink: #243b35; --muted: #78877f; }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #f6f5ef; color: var(--ink); font-family: "Segoe UI", "Microsoft YaHei", sans-serif; line-height: 1.7; }
+        main { max-width: 1000px; min-height: 100vh; margin: auto; padding: 55px 32px; display: grid; grid-template-columns: 1fr 420px; align-items: center; gap: 70px; }
+        .brand { font-size: 26px; font-weight: 700; letter-spacing: .03em; }
+        .leaf { display: inline-block; width: 19px; height: 32px; background: var(--green); border-radius: 80% 0 80% 0; transform: rotate(12deg); margin-right: 13px; vertical-align: middle; }
+        .eyebrow { color: var(--muted); font-size: 11px; letter-spacing: .2em; margin-top: 64px; }
+        h1 { font-size: 34px; line-height: 1.5; font-weight: 600; margin: 16px 0; }
+        .intro p { color: var(--muted); }
+        .note { border-top: 1px solid #dce3da; padding-top: 24px; margin-top: 44px; font-size: 13px; }
+        .panel { padding: 36px; background: #fff; border: 1px solid #dfe5dc; border-radius: 20px; box-shadow: 0 16px 50px #243b3508; }
+        h2 { font-size: 23px; margin: 0 0 8px; }
+        .subtle { color: var(--muted); font-size: 13px; margin: 0 0 22px; }
+        label { display: block; margin: 18px 0 7px; font-size: 14px; }
+        input { width: 100%; padding: 12px 14px; border: 1px solid #ccd7ce; border-radius: 8px; font: inherit; font-size: 15px; background: #fdfefd; }
+        input:focus { outline: 2px solid #adc6b7; outline-offset: 2px; }
+        button { cursor: pointer; font: inherit; border-radius: 8px; }
+        .primary { width: 100%; background: var(--green); color: white; border: 0; padding: 12px; margin-top: 24px; }
+        button:disabled { opacity: .55; cursor: wait; }
+        .text-button { color: var(--green); background: transparent; border: 0; padding: 7px 0; margin-top: 8px; }
+        #auth-message { margin: 16px 0 0; font-size: 13px; min-height: 24px; overflow-wrap: anywhere; }
+        [hidden] { display: none !important; }
+        @media(max-width: 760px) { main { display: block; max-width: 470px; padding: 35px 20px; } .eyebrow { margin-top: 28px; } h1 { font-size: 27px; } .intro { margin-bottom: 28px; } .note { display: none; } .panel { padding: 26px; } }
+    </style>
+    <script src="/static/login.js?v=auth-1" defer></script>
+</head>
+<body>
+<main>
+    <section class="intro">
+        <div class="brand"><span class="leaf" aria-hidden="true"></span>留白 LessLab</div>
+        <p class="eyebrow">LESS, BUT BETTER</p>
+        <h1>为重要的事，<br>留一点白。</h1>
+        <p>整理你的收藏，找回自己的节奏。<br>从今天能完成的一小步开始。</p>
+        <p class="note">把收藏，变成行动。<br>你的资料、目标和进度，保存在自己的账号中。</p>
+    </section>
+    <section class="panel" aria-labelledby="auth-heading">
+        <h2 id="auth-heading">回到你的空间</h2>
+        <p class="subtle" id="auth-description">登录后，继续上次的计划。</p>
+        <form id="auth-form">
+            <label for="username">用户名</label>
+            <input id="username" name="username" autocomplete="username" minlength="3" maxlength="32" pattern="[A-Za-z0-9_]{3,32}" title="3—32 位英文字母、数字或下划线" required>
+            <label for="password">密码</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" minlength="1" maxlength="128" required>
+            <p id="password-hint" class="subtle" hidden>使用 15—128 个字符的长密码或短语。</p>
+            <button class="primary" id="auth-submit" type="submit" disabled>登录</button>
+        </form>
+        <p id="auth-message" role="status" aria-live="polite">正在连接账号服务……</p>
+        <button class="text-button" id="auth-toggle" type="button" hidden>创建一个新账号</button>
+        <button class="text-button" id="auth-retry" type="button" hidden>重新连接</button>
+    </section>
+</main>
+</body>
+</html>

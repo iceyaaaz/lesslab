@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import types
 import unittest
+from auth_test_support import authorize
 from unittest.mock import MagicMock, patch
 
 from fastapi import FastAPI
@@ -12,8 +13,8 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.pool import StaticPool
 
-SCHEMA = '''CREATE TABLE current_goal (
-    id INTEGER PRIMARY KEY CHECK(id = 1), title TEXT,
+SCHEMA = '''CREATE TABLE user_goals (
+    user_id INTEGER PRIMARY KEY, title TEXT,
     success_criteria TEXT NOT NULL DEFAULT '', due_date TEXT,
     daily_minutes INTEGER NOT NULL DEFAULT 30 CHECK(daily_minutes BETWEEN 1 AND 600),
     version INTEGER NOT NULL DEFAULT 0
@@ -26,7 +27,7 @@ class CurrentGoalTests(unittest.TestCase):
         self.addCleanup(self.engine.dispose)
         with self.engine.begin() as conn:
             conn.execute(text(SCHEMA))
-            conn.execute(text('INSERT INTO current_goal(id) VALUES(1)'))
+            conn.execute(text('INSERT INTO user_goals(user_id) VALUES(1)'))
         database = types.ModuleType('database')
         database.engine = self.engine
         source = Path(__file__).resolve().parents[1] / 'goal_routes.py'
@@ -36,6 +37,7 @@ class CurrentGoalTests(unittest.TestCase):
             spec.loader.exec_module(self.module)
         app = FastAPI()
         app.include_router(self.module.router)
+        authorize(app)
         self.client = TestClient(app)
         self.addCleanup(self.client.close)
         guard = patch('httpx.post', side_effect=AssertionError('目标管理不应调用模型'))
@@ -115,7 +117,7 @@ class CurrentGoalTests(unittest.TestCase):
 
     def test_missing_seed_reports_setup_error(self):
         with self.engine.begin() as conn:
-            conn.execute(text('DELETE FROM current_goal'))
+            conn.execute(text('DELETE FROM user_goals'))
         self.assertEqual(self.read().status_code, 503)
         self.assertEqual(self.save().status_code, 503)
 

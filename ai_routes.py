@@ -10,6 +10,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from fastapi import Depends
+from security import require_user
+
 from database import engine
 
 router = APIRouter()
@@ -58,7 +61,7 @@ def validate_selection(selection, candidates, budget):
 
 
 @router.post("/ai-study-plan", tags=["AI 学习计划"])
-def create_ai_study_plan(request: AIPlanRequest):
+def create_ai_study_plan(request: AIPlanRequest, user: dict = Depends(require_user)):
     # 1. 只读取符合时间条件的待学习收藏，最多提供最近 20 条。
     try:
         with engine.connect() as connection:
@@ -66,13 +69,13 @@ def create_ai_study_plan(request: AIPlanRequest):
                 text("""
                     SELECT id, title, url, estimated_minutes
                     FROM resources
-                    WHERE status = 'unread'
+                    WHERE owner_id = :user_id AND status = 'unread'
                       AND archived_at IS NULL
                       AND estimated_minutes BETWEEN 1 AND :minutes
                     ORDER BY id DESC
                     LIMIT 20
                 """),
-                {"minutes": request.minutes},
+                {"minutes": request.minutes, "user_id": user["id"]},
             ).mappings().all()
             candidates = [dict(row) for row in rows]
     except SQLAlchemyError:

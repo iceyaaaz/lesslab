@@ -7,6 +7,7 @@ from pathlib import Path
 import sys
 import types
 import unittest
+from auth_test_support import authorize
 from unittest.mock import MagicMock, patch
 
 from fastapi import FastAPI
@@ -29,6 +30,7 @@ class SavedPlanTests(unittest.TestCase):
 
         app = FastAPI()
         app.include_router(self.module.router)
+        authorize(app)
         self.client = TestClient(app)
         self.addCleanup(self.client.close)
         guard = patch("httpx.post", side_effect=AssertionError("保存计划不应调用模型。"))
@@ -154,7 +156,7 @@ class SavedPlanTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["items"], self.snapshot)
         self.read_connection.execute.assert_called_once()
-        self.assertEqual(self.read_connection.execute.call_args.args[1], {"plan_id": 7})
+        self.assertEqual(self.read_connection.execute.call_args.args[1], {"plan_id": 7, "user_id": 1})
 
     def test_missing_plan_returns_404(self):
         self.read_connection.execute.return_value.mappings.return_value.first.return_value = None
@@ -171,7 +173,7 @@ class SavedPlanTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["items"], rows[:2])
         self.assertTrue(response.json()["has_more"])
-        self.assertEqual(self.read_connection.execute.call_args.args[1], {"limit": 3, "offset": 4})
+        self.assertEqual(self.read_connection.execute.call_args.args[1], {"limit": 3, "offset": 4, "user_id": 1})
 
     def test_empty_history_is_valid(self):
         self.read_connection.execute.return_value.mappings.return_value.all.return_value = []

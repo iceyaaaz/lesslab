@@ -10,6 +10,7 @@ from pathlib import Path
 import sys
 import types
 import unittest
+from auth_test_support import authorize
 from unittest.mock import MagicMock, patch
 
 import httpx
@@ -56,6 +57,7 @@ class AIPlanTests(unittest.TestCase):
 
         app = FastAPI()
         app.include_router(self.ai.router)
+        authorize(app)
         self.client = TestClient(app)
         self.addCleanup(self.client.close)
 

@@ -5,6 +5,9 @@ from pydantic import BaseModel, ConfigDict, StrictBool
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from fastapi import Depends
+from security import require_user
+
 from database import engine
 
 router = APIRouter(tags=["资料归档"])
@@ -16,12 +19,12 @@ class ArchiveUpdate(BaseModel):
 
 
 @router.patch("/resources/{resource_id}/archive")
-def update_archive(request: ArchiveUpdate, resource_id: int = Path(gt=0)):
+def update_archive(request: ArchiveUpdate, resource_id: int = Path(gt=0), user: dict = Depends(require_user)):
     try:
         with engine.begin() as connection:
             row = connection.execute(
-                text("SELECT id FROM resources WHERE id = :id FOR UPDATE"),
-                {"id": resource_id},
+                text("SELECT id FROM resources WHERE id = :id AND owner_id = :user_id FOR UPDATE"),
+                {"id": resource_id, "user_id": user["id"]},
             ).mappings().first()
             if row is None:
                 raise HTTPException(404, "这条收藏不存在。")
@@ -33,13 +36,13 @@ def update_archive(request: ArchiveUpdate, resource_id: int = Path(gt=0)):
                     SET archived_at = CASE WHEN :archived = 1
                         THEN COALESCE(archived_at, CURRENT_TIMESTAMP)
                         ELSE NULL END
-                    WHERE id = :id
+                    WHERE id = :id AND owner_id = :user_id
                 """),
-                {"id": resource_id, "archived": int(request.archived)},
+                {"id": resource_id, "archived": int(request.archived), "user_id": user["id"]},
             )
             row = connection.execute(
-                text("SELECT id, status, archived_at FROM resources WHERE id = :id"),
-                {"id": resource_id},
+                text("SELECT id, status, archived_at FROM resources WHERE id = :id AND owner_id = :user_id"),
+                {"id": resource_id, "user_id": user["id"]},
             ).mappings().one()
             result = dict(row)
         return result
